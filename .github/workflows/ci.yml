@@ -17,20 +17,8 @@ jobs:
         with:
           channel: stable
 
-      - name: Flutter version
-        run: flutter --version
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Format check
-        run: dart format --set-exit-if-changed .
-
-      - name: Static analysis
-        run: flutter analyze
-
-      - name: Test
-        run: flutter test
+      - name: Verify dev checks
+        run: ./tool/verify-dev.sh
 
       - name: Pub dry run
         run: flutter pub publish --dry-run

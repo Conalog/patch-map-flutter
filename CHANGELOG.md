@@ -1,4 +1,4 @@
-## 0.1.0
+## 0.0.1
 
 - Bootstrap package for pub.dev release.
 - Add initial public class `Patchmap`.

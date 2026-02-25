@@ -1,0 +1,5 @@
+# Remove these ignores once package APIs start importing them.
+ignore:
+  - flutter
+  - flame
+  - json_path

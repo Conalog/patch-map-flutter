@@ -3,9 +3,6 @@
 ## Definition of Done
 
 - Source and tests are updated together.
-- `./tool/verify.sh` passes locally.
-- `CHANGELOG.md` is updated for user-visible changes.
-- Package remains publishable via dry-run.
 
 ## Notes
 

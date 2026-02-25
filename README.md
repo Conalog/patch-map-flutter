@@ -11,13 +11,16 @@ flutter pub add patch_map_flutter
 ## Development
 
 ```bash
-./tool/verify.sh
+./tool/verify-dev.sh
+./tool/verify-release.sh
+make depcheck
+make pana
+make release-version
 ```
 
 ## Publish Checklist
 
 1. Update `version` in `pubspec.yaml`
 2. Update `CHANGELOG.md`
-3. Run `./tool/verify.sh`
-4. Run `flutter pub publish --dry-run`
-5. Publish with `flutter pub publish`
+3. Run `./tool/verify-release.sh`
+4. Publish with `flutter pub publish`
