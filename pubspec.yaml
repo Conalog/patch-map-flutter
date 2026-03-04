@@ -14,6 +14,7 @@ dependencies:
     sdk: flutter
   flutter_svg: ^2.2.3
   json_path: ^0.9.0
+  nanoid2: ^2.0.1
 
 dev_dependencies:
   flutter_test:
