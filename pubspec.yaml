@@ -12,6 +12,7 @@ dependencies:
   flame: ^1.35.1
   flutter:
     sdk: flutter
+  flutter_svg: ^2.2.3
   json_path: ^0.9.0
 
 dev_dependencies:
@@ -23,3 +24,19 @@ dev_dependencies:
   cider: ^0.2.10
 
 flutter:
+  assets:
+    - assets/icons/
+    - assets/fonts/
+  fonts:
+    - family: FiraCode
+      fonts:
+        - asset: assets/fonts/FiraCode-Light.ttf
+          weight: 300
+        - asset: assets/fonts/FiraCode-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/FiraCode-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/FiraCode-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/FiraCode-Bold.ttf
+          weight: 700
