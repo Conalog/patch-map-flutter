@@ -47,6 +47,7 @@ void main() {
       ),
     );
 
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     await _pumpFor(tester, 40);
     expect(onReadyCallCount, 1);
   });

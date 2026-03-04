@@ -5,9 +5,14 @@ import 'package:flutter/services.dart';
 
 import 'patchmap_init_options.dart';
 
+typedef PatchmapAssetStringLoader = Future<String> Function(String key);
+
 final class PatchmapAssetRegistry {
-  PatchmapAssetRegistry({String packageName = 'patch_map_flutter'})
-    : _packageName = packageName;
+  PatchmapAssetRegistry({
+    String packageName = 'patch_map_flutter',
+    PatchmapAssetStringLoader? assetStringLoader,
+  }) : _packageName = packageName,
+       _assetStringLoader = assetStringLoader ?? rootBundle.loadString;
 
   static const Map<String, String> _iconAssetPathByAlias = <String, String>{
     'object': 'assets/icons/object.svg',
@@ -21,6 +26,7 @@ final class PatchmapAssetRegistry {
   };
 
   final String _packageName;
+  final PatchmapAssetStringLoader _assetStringLoader;
   final Map<String, String> _iconSvgByAlias = <String, String>{};
 
   bool _isReady = false;
@@ -74,7 +80,7 @@ final class PatchmapAssetRegistry {
 
     for (final path in candidates) {
       try {
-        return await rootBundle.loadString(path);
+        return await _assetStringLoader(path);
       } on FlutterError catch (error) {
         lastError = error;
       }

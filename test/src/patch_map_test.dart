@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:patch_map_flutter/patch_map_flutter.dart';
+import 'package:patch_map_flutter/src/runtime/patchmap_asset_registry.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -11,6 +12,16 @@ void main() {
     test('can be instantiated', () {
       final instance = Patchmap();
       expect(instance, isA<Patchmap>());
+    });
+
+    test('can be instantiated with injected runtime', () {
+      final runtime = PatchmapRuntime(
+        assetRegistry: PatchmapAssetRegistry(
+          assetStringLoader: (_) async => '<svg viewBox="0 0 24 24"></svg>',
+        ),
+      );
+      final instance = Patchmap(runtime: runtime);
+      expect(identical(instance.app, runtime), isTrue);
     });
 
     test('exposes runtime via app', () {

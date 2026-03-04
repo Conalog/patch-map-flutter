@@ -8,7 +8,7 @@ export 'runtime/patchmap_init_options.dart'
 export 'runtime/patchmap_runtime.dart' show PatchmapRuntime;
 
 final class Patchmap {
-  Patchmap() : _app = PatchmapRuntime();
+  Patchmap({PatchmapRuntime? runtime}) : _app = runtime ?? PatchmapRuntime();
 
   final PatchmapRuntime _app;
   Future<void>? _initFuture;

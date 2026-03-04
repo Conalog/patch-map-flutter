@@ -35,6 +35,7 @@ class _PatchmapWidgetState extends State<PatchmapWidget> {
   late Patchmap _patchmap;
   late Future<PatchmapRuntime> _runtimeFuture;
   final Set<PatchmapRuntime> _readyNotifiedRuntimes = <PatchmapRuntime>{};
+  int _bindGeneration = 0;
 
   @override
   void initState() {
@@ -46,8 +47,7 @@ class _PatchmapWidgetState extends State<PatchmapWidget> {
   void didUpdateWidget(covariant PatchmapWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.patchmap != widget.patchmap ||
-        oldWidget.options != widget.options) {
+    if (oldWidget.patchmap != widget.patchmap) {
       _bindPatchmap(widget.patchmap);
       setState(() {});
     }
@@ -55,14 +55,26 @@ class _PatchmapWidgetState extends State<PatchmapWidget> {
 
   void _bindPatchmap(Patchmap? patchmap) {
     _patchmap = patchmap ?? Patchmap();
-    _runtimeFuture = _initializeRuntime();
+    final generation = ++_bindGeneration;
+    _runtimeFuture = _initializeRuntime(generation);
   }
 
-  Future<PatchmapRuntime> _initializeRuntime() async {
-    await _patchmap.init(options: widget.options);
-    final runtime = _patchmap.app;
+  Future<PatchmapRuntime> _initializeRuntime(int generation) async {
+    final patchmap = _patchmap;
+    final options = widget.options;
+    final onReady = widget.onReady;
+
+    await patchmap.init(options: options);
+    final runtime = patchmap.app;
+
+    if (!mounted ||
+        generation != _bindGeneration ||
+        !identical(patchmap, _patchmap)) {
+      return runtime;
+    }
+
     if (_readyNotifiedRuntimes.add(runtime)) {
-      widget.onReady?.call(runtime);
+      onReady?.call(runtime);
     }
     return runtime;
   }
