@@ -3,6 +3,29 @@ import 'dart:collection';
 import '../common/json_types.dart';
 import 'element_model.dart';
 
+/// Text domain model for `type: "text"` elements.
+///
+/// Supported JSON fields (draw/fromJson):
+/// - `type` (required): must be `"text"`.
+/// - `id` (`String?`): when omitted, an auto id is assigned.
+/// - `label` (`String?`)
+/// - `show` (`bool`, default `true`)
+/// - `attrs` (`Map<String, Object?>`, default `{}`)
+/// - `text` (`String`, default `''`)
+/// - `style` (`Map<String, Object?>`, default `{}`)
+/// - `size` (`Map<String, Object?>?`, default `null`)
+///
+/// Patch behavior:
+/// - `applyJsonPatch(..., mergeObjects: true)` merges object fields (`attrs`,
+///   `style`, `size`) as patch maps.
+/// - `applyJsonPatch(..., mergeObjects: false)` replaces object fields.
+/// - `text: null` in JSON patch is normalized to `''`.
+///
+/// Rendering note (current text render layer behavior):
+/// - `style.fill` -> text color
+/// - `style.fontSize` -> font size
+/// - `style.fontWeight` -> font weight (numeric or named string)
+/// - `style.fontFamily` -> font family
 final class TextElement extends ElementModel {
   static const String elementType = 'text';
   static bool _decoderRegistered = false;
@@ -176,6 +199,15 @@ final class TextElement extends ElementModel {
   }
 
   @override
+  /// Applies a JSON patch to this text element.
+  ///
+  /// Recognized patch keys:
+  /// - base keys: `label`, `show`, `attrs`
+  /// - text keys: `text`, `style`, `size`
+  ///
+  /// Object key behavior depends on [mergeObjects]:
+  /// - `true`: object values are merged as patches
+  /// - `false`: object values replace existing maps
   void applyJsonPatch(JsonMap changes, {required bool mergeObjects}) {
     final labelArg = labelArgFromChanges(changes);
     final showArg = showArgFromChanges(changes);
@@ -198,6 +230,14 @@ final class TextElement extends ElementModel {
   }
 
   @override
+  /// Applies typed updates to this text element.
+  ///
+  /// - [text] updates displayed text.
+  /// - [style]/[stylePatch] replace or patch style entries.
+  /// - [size]/[sizePatch] replace or patch size entries.
+  /// - [attrs]/[attrsPatch] and common fields are handled via base logic.
+  ///
+  /// Change notifications are emitted only when effective state changes.
   void apply({
     Object? label = ElementModel.unchanged,
     bool? show,
