@@ -26,6 +26,7 @@ final class PatchmapRuntime extends FlameGame<World> {
 
   void configureApp(PatchmapInitAppOptions appOptions) {
     _backgroundColorOverride = appOptions.backgroundColor;
+    _tryApplyTopLeftWorldOrigin();
   }
 
   Future<void> preloadAssets({
@@ -45,8 +46,23 @@ final class PatchmapRuntime extends FlameGame<World> {
       _backgroundColorOverride ?? super.backgroundColor();
 
   @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    _tryApplyTopLeftWorldOrigin();
+  }
+
+  @override
   void onRemove() {
     _spriteFactory.clear();
     super.onRemove();
+  }
+
+  void _tryApplyTopLeftWorldOrigin() {
+    if (!hasLayout) {
+      return;
+    }
+
+    camera.viewfinder.anchor = Anchor.topLeft;
+    camera.viewfinder.position = Vector2.zero();
   }
 }
