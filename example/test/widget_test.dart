@@ -3,7 +3,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:patch_map_flutter/patch_map_flutter.dart';
 import 'package:patch_map_flutter_example/main.dart';
 
+const String _publicImageUrl =
+    'https://flutter.github.io/assets-for-api-docs/assets/widgets/owl.jpg';
+
 const List<Object?> _testElements = <Object?>[
+  <String, Object?>{
+    'type': 'image',
+    'id': 'status-image',
+    'label': 'status-image',
+    'show': true,
+    'attrs': <String, Object?>{'x': 24, 'y': 140, 'zIndex': 1},
+    'source': _publicImageUrl,
+    'tint': '#ffffff',
+    'size': <String, Object?>{'w': 48, 'h': 48},
+  },
   <String, Object?>{
     'type': 'text',
     'id': 'title',
@@ -29,6 +42,13 @@ void main() {
     expect(find.text('attrs.x=0 attrs.y=0 attrs.zIndex=1'), findsOneWidget);
     expect(find.text('style.fontSize=14 style.fill=black'), findsOneWidget);
     expect(find.text('size.w=120 size.h=28'), findsOneWidget);
+    expect(find.text('image.source=$_publicImageUrl'), findsOneWidget);
+    expect(find.text('image.tint=#ffffff'), findsOneWidget);
+    expect(find.text('image.size.w=48 image.size.h=48'), findsOneWidget);
+    expect(
+      find.text('image.attrs.x=24 image.attrs.y=140 image.attrs.zIndex=1'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('btn-update-text')));
     await _pumpFrames(tester, 3);
@@ -57,6 +77,25 @@ void main() {
     await tester.tap(find.byKey(const Key('btn-update-size')));
     await _pumpFrames(tester, 3);
     expect(find.text('size.w=300 size.h=60'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('btn-image-warning')));
+    await _pumpFrames(tester, 3);
+    expect(find.text('image.source=warning'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('btn-image-size')));
+    await _pumpFrames(tester, 3);
+    expect(find.text('image.size.w=72 image.size.h=72'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('btn-image-tint')));
+    await _pumpFrames(tester, 3);
+    expect(find.text('image.tint=#ff0000'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('btn-image-move')));
+    await _pumpFrames(tester, 3);
+    expect(
+      find.text('image.attrs.x=180 image.attrs.y=140 image.attrs.zIndex=5'),
+      findsOneWidget,
+    );
 
     // TextBoxComponent internally uses delayed timers when refreshing cache.
     await tester.pump(const Duration(milliseconds: 150));

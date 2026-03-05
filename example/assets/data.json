@@ -43,5 +43,21 @@
     "style": {
       "fontSize": 13
     }
+  },
+  {
+    "type": "image",
+    "id": "status-image",
+    "label": "status-image",
+    "show": true,
+    "attrs": {
+      "x": 24,
+      "y": 140,
+      "zIndex": 1
+    },
+    "source": "https://images.conalog.com/api/files/w8l3o9jedinck7g/9er8oc1wcrkqnjn/plantmap_1771902906115_0_3daau897ch.png",
+    "size": {
+      "w": 220,
+      "h": 180
+    }
   }
 ]
