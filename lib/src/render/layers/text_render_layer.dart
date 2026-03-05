@@ -5,11 +5,20 @@ import '../../domain/elements/text_element.dart';
 import 'element_render_layer.dart';
 
 final class TextRenderLayer extends ElementRenderLayer<TextElement> {
-  TextRenderLayer() {
+  TextRenderLayer({
+    TextBoxComponent<TextPaint> Function(Vector2? size)? componentBuilder,
+  }) : _componentBuilder =
+           componentBuilder ??
+           ((Vector2? size) => _createTextBoxComponent(size: size)),
+       _textComponent =
+           (componentBuilder ??
+           ((Vector2? size) => _createTextBoxComponent(size: size)))(null) {
     add(_textComponent);
   }
 
-  final TextComponent _textComponent = TextComponent(text: '');
+  final TextBoxComponent<TextPaint> Function(Vector2? size) _componentBuilder;
+  TextBoxComponent<TextPaint> _textComponent;
+  bool _isFixedSizeMode = false;
 
   String get renderedText => _textComponent.text;
   TextStyle get renderedTextStyle {
@@ -20,12 +29,19 @@ final class TextRenderLayer extends ElementRenderLayer<TextElement> {
     return TextPaint.defaultTextStyle;
   }
 
+  Vector2 get renderedSize =>
+      Vector2(_textComponent.size.x, _textComponent.size.y);
+  bool get usesFixedSizeMode => _isFixedSizeMode;
+
   @override
   void syncFromModel(TextElement model) {
+    final fixedSize = _fixedSizeFrom(model.size);
+    final constrainedWidth = _maxWidthFrom(model.size);
+    _ensureComponentMode(isFixedSize: fixedSize != null, fixedSize: fixedSize);
+
     final customFontFamily = _normalizedFontFamily(model.style['fontFamily']);
     final fontFamily = customFontFamily ?? 'FiraCode';
-    _textComponent.text = model.text;
-    _textComponent.textRenderer = TextPaint(
+    final textPaint = TextPaint(
       style: TextStyle(
         color: _colorFromFill(model.style['fill']) ?? const Color(0xFF000000),
         fontSize: _fontSizeFromStyle(model.style['fontSize']) ?? 16,
@@ -34,6 +50,83 @@ final class TextRenderLayer extends ElementRenderLayer<TextElement> {
         package: customFontFamily == null ? 'patch_map_flutter' : null,
       ),
     );
+
+    if (fixedSize != null) {
+      _textComponent.size = fixedSize;
+    }
+    _textComponent.text = model.text;
+    _textComponent.textRenderer = textPaint;
+    _textComponent.boxConfig = TextBoxConfig(
+      maxWidth: constrainedWidth ?? _autoMaxWidth(model.text, textPaint),
+      margins: EdgeInsets.zero,
+    );
+  }
+
+  void _ensureComponentMode({
+    required bool isFixedSize,
+    required Vector2? fixedSize,
+  }) {
+    if (_isFixedSizeMode == isFixedSize) {
+      return;
+    }
+    _isFixedSizeMode = isFixedSize;
+
+    final next = _componentBuilder(fixedSize);
+    remove(_textComponent);
+    _textComponent = next;
+    add(_textComponent);
+  }
+
+  static TextBoxComponent<TextPaint> _createTextBoxComponent({Vector2? size}) {
+    final fixedSize = size == null ? null : Vector2(size.x, size.y);
+    return TextBoxComponent<TextPaint>(
+      text: '',
+      size: fixedSize,
+      boxConfig: TextBoxConfig(
+        maxWidth: fixedSize?.x ?? 1,
+        margins: EdgeInsets.zero,
+      ),
+    );
+  }
+
+  double _autoMaxWidth(String text, TextPaint renderer) {
+    final width = renderer.getLineMetrics(text).width;
+    if (!width.isFinite || width <= 0) {
+      return 1;
+    }
+    return width;
+  }
+
+  Vector2? _fixedSizeFrom(Map<String, Object?>? size) {
+    if (size == null) {
+      return null;
+    }
+    final width = _firstPositiveNumber(size, const <String>['w', 'width']);
+    final height = _firstPositiveNumber(size, const <String>['h', 'height']);
+    if (width == null || height == null) {
+      return null;
+    }
+    return Vector2(width, height);
+  }
+
+  double? _maxWidthFrom(Map<String, Object?>? size) {
+    if (size == null) {
+      return null;
+    }
+    return _firstPositiveNumber(size, const <String>['w', 'width']);
+  }
+
+  double? _firstPositiveNumber(Map<String, Object?> source, List<String> keys) {
+    for (final key in keys) {
+      final raw = source[key];
+      if (raw is num && raw.isFinite) {
+        final value = raw.toDouble();
+        if (value > 0) {
+          return value;
+        }
+      }
+    }
+    return null;
   }
 
   String? _normalizedFontFamily(Object? value) {

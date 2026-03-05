@@ -1,3 +1,5 @@
+import 'package:flame/components.dart';
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:patch_map_flutter/src/domain/elements/element_model.dart';
 import 'package:patch_map_flutter/src/domain/elements/text_element.dart';
@@ -6,7 +8,6 @@ import 'package:patch_map_flutter/src/render/layers/element_render_host.dart';
 import 'package:patch_map_flutter/src/render/layers/element_render_layer.dart';
 import 'package:patch_map_flutter/src/render/layers/text_render_layer.dart';
 import 'package:patch_map_flutter/src/state/elements_state.dart';
-import 'package:flutter/painting.dart';
 
 void main() {
   ensureBuiltinElementRenderLayersRegistered();
@@ -94,6 +95,72 @@ void main() {
       layer.bind(model);
 
       expect(layer.renderedTextStyle.fontFamily, 'Pretendard');
+    });
+
+    test('uses fixed text box size and wraps when size is provided', () {
+      final layer = TextRenderLayer();
+      final model = TextElement(
+        id: 'txt-wrap',
+        text: 'one two three four five',
+        style: {'fontSize': 16},
+        size: {'w': 64, 'h': 48},
+      );
+
+      layer.bind(model);
+
+      expect(layer.renderedSize.x, 64);
+      expect(layer.renderedSize.y, 48);
+      expect(layer.usesFixedSizeMode, isTrue);
+    });
+
+    test('applies maxWidth from size.w while keeping auto height', () {
+      final baseline = TextRenderLayer();
+      final baselineModel = TextElement(
+        id: 'txt-baseline',
+        text: 'one two three four five',
+        style: {'fontSize': 16},
+      );
+      baseline.bind(baselineModel);
+      final baselineHeight = baseline.renderedSize.y;
+
+      final layer = TextRenderLayer();
+      final model = TextElement(
+        id: 'txt-width-only',
+        text: 'one two three four five',
+        style: {'fontSize': 16},
+        size: {'w': 64},
+      );
+
+      layer.bind(model);
+
+      expect(layer.usesFixedSizeMode, isFalse);
+      expect(layer.renderedSize.x, 64);
+      expect(layer.renderedSize.y, greaterThan(baselineHeight));
+    });
+
+    test('applies style before triggering text-box redraw', () {
+      final spies = <_SpyTextBoxComponent>[];
+      final layer = TextRenderLayer(
+        componentBuilder: (size) {
+          final spy = _SpyTextBoxComponent(size: size);
+          spies.add(spy);
+          return spy;
+        },
+      );
+      final model = TextElement(
+        id: 'txt-style-order',
+        text: 'STYLE',
+        style: {'fontSize': 36, 'fill': 'black'},
+        size: {'w': 220, 'h': 80},
+      );
+
+      layer.bind(model);
+      model.apply(style: {'fontSize': 36, 'fill': 'red'});
+      layer.bind(model);
+
+      final activeSpy = spies.last;
+      expect(activeSpy.colorsAtBoxConfigSet, isNotEmpty);
+      expect(activeSpy.colorsAtBoxConfigSet.last, const Color(0xFFFF0000));
     });
   });
 
@@ -195,4 +262,29 @@ final class _CustomRenderLayer
     extends ElementRenderLayer<_CustomRenderElement> {
   @override
   void syncFromModel(_CustomRenderElement model) {}
+}
+
+final class _SpyTextBoxComponent extends TextBoxComponent<TextPaint> {
+  _SpyTextBoxComponent({super.size})
+    : super(
+        text: '',
+        textRenderer: TextPaint(),
+        boxConfig: TextBoxConfig(
+          maxWidth: size?.x ?? 1,
+          margins: EdgeInsets.zero,
+        ),
+      );
+
+  final List<Color?> colorsAtBoxConfigSet = <Color?>[];
+
+  @override
+  set boxConfig(TextBoxConfig value) {
+    final renderer = textRenderer;
+    if (renderer is TextPaint) {
+      colorsAtBoxConfigSet.add(renderer.style.color);
+    } else {
+      colorsAtBoxConfigSet.add(null);
+    }
+    super.boxConfig = value;
+  }
 }
