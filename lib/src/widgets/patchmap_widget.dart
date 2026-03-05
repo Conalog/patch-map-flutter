@@ -20,7 +20,19 @@ class PatchmapWidget extends StatefulWidget {
     this.onReady,
   });
 
+  /// Patchmap instance bound to this widget.
+  ///
+  /// When this value changes, the widget re-binds and re-initializes using the
+  /// current [options].
   final Patchmap? patchmap;
+
+  /// Initialization options applied when this widget binds a [patchmap].
+  ///
+  /// This is intentionally a one-time input per bind. Updating [options] alone
+  /// does not trigger re-initialization while the same [patchmap] instance
+  /// remains bound.
+  ///
+  /// To apply different options, provide a different [patchmap] instance.
   final PatchmapInitOptions options;
   final PatchmapRuntimeWidgetBuilder? builder;
   final WidgetBuilder? loadingBuilder;

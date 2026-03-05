@@ -8,6 +8,12 @@
 flutter pub add patch_map_flutter
 ```
 
+## PatchmapWidget Initialization Contract
+
+- `PatchmapWidget.options` is applied once when the widget binds a `Patchmap`.
+- Updating `options` with the same `Patchmap` instance does not re-initialize.
+- To apply different init options, provide a different `Patchmap` instance.
+
 ## Development
 
 ```bash

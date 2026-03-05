@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:patch_map_flutter/patch_map_flutter.dart';
 import 'package:patch_map_flutter/src/runtime/patchmap_asset_registry.dart';
 
+import '../helpers/widget_pump.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -23,7 +25,7 @@ void main() {
                 runtimes.add(runtime);
                 readinessSnapshots.add(runtime.assetsReady);
               },
-              builder: (_, __) => const SizedBox.shrink(),
+              builder: (context, runtime) => const SizedBox.shrink(),
             ),
           ),
         ),
@@ -38,14 +40,14 @@ void main() {
                 runtimes.add(runtime);
                 readinessSnapshots.add(runtime.assetsReady);
               },
-              builder: (_, __) => const SizedBox.shrink(),
+              builder: (context, runtime) => const SizedBox.shrink(),
             ),
           ),
         ),
       );
 
-      await _pumpUntil(tester, () => runtimes.isNotEmpty);
-      await _pumpFor(tester, 80);
+      await pumpUntil(tester, () => runtimes.isNotEmpty, maxPumps: 300);
+      await pumpFor(tester, 80);
 
       expect(runtimes, hasLength(1));
       expect(runtimes.single, same(patchmapB.app));
@@ -53,30 +55,6 @@ void main() {
       expect(readinessSnapshots, [true]);
     },
   );
-}
-
-Future<void> _pumpUntil(
-  WidgetTester tester,
-  bool Function() condition, {
-  int maxPumps = 300,
-}) async {
-  for (var i = 0; i < maxPumps; i++) {
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 1));
-    });
-    await tester.pump(const Duration(milliseconds: 16));
-
-    final exception = tester.takeException();
-    if (exception != null) {
-      fail('Unexpected exception while pumping: $exception');
-    }
-
-    if (condition()) {
-      return;
-    }
-  }
-
-  fail('Timed out waiting for condition.');
 }
 
 Patchmap _buildPatchmapWithDelay({required int delayMs}) {
@@ -89,13 +67,4 @@ Patchmap _buildPatchmapWithDelay({required int delayMs}) {
     assetRegistry: PatchmapAssetRegistry(assetStringLoader: delayedSvgLoader),
   );
   return Patchmap(runtime: runtime);
-}
-
-Future<void> _pumpFor(WidgetTester tester, int frames) async {
-  for (var i = 0; i < frames; i++) {
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 1));
-    });
-    await tester.pump(const Duration(milliseconds: 16));
-  }
 }
