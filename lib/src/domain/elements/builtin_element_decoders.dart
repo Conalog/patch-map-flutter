@@ -1,3 +1,4 @@
+import 'image_element.dart';
 import 'text_element.dart';
 
 bool _registered = false;
@@ -8,5 +9,6 @@ void ensureBuiltinElementDecodersRegistered() {
   }
 
   TextElement.ensureDecoderRegistered();
+  ImageElement.ensureDecoderRegistered();
   _registered = true;
 }

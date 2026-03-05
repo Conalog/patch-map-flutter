@@ -1,11 +1,14 @@
 import 'package:flame/components.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:patch_map_flutter/src/domain/elements/element_model.dart';
+import 'package:patch_map_flutter/src/domain/elements/image_element.dart';
 import 'package:patch_map_flutter/src/domain/elements/text_element.dart';
 import 'package:patch_map_flutter/src/render/layers/builtin_element_render_layers.dart';
 import 'package:patch_map_flutter/src/render/layers/element_render_host.dart';
 import 'package:patch_map_flutter/src/render/layers/element_render_layer.dart';
+import 'package:patch_map_flutter/src/render/layers/image_render_layer.dart';
 import 'package:patch_map_flutter/src/render/layers/text_render_layer.dart';
 import 'package:patch_map_flutter/src/state/elements_state.dart';
 
@@ -209,6 +212,164 @@ void main() {
     });
   });
 
+  group('ImageRenderLayer', () {
+    test('reflects ImageElement source and size into sprite state', () async {
+      final loadedSources = <String>[];
+      final layer = ImageRenderLayer(
+        spriteLoader: (source) async {
+          loadedSources.add(source);
+          return null;
+        },
+      );
+      final model = ImageElement(
+        id: 'img-1',
+        source: 'wifi',
+        size: {'width': 80, 'height': 60},
+        attrs: {'x': 3, 'y': 4, 'zIndex': 5},
+      );
+
+      layer.bind(model);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(layer.renderedSource, 'wifi');
+      expect(layer.renderedSize.x, 80);
+      expect(layer.renderedSize.y, 60);
+      expect(layer.priority, 5);
+      expect(layer.position.x, 3);
+      expect(layer.position.y, 4);
+      expect(loadedSources, <String>['wifi']);
+
+      model.apply(source: 'device', sizePatch: {'width': 120});
+      layer.bind(model);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(layer.renderedSource, 'device');
+      expect(layer.renderedSize.x, 120);
+      expect(layer.renderedSize.y, 60);
+      expect(loadedSources, <String>['wifi', 'device']);
+    });
+
+    test('avoids sprite reload when only shared attrs changed', () async {
+      final loadedSources = <String>[];
+      final layer = ImageRenderLayer(
+        spriteLoader: (source) async {
+          loadedSources.add(source);
+          return null;
+        },
+      );
+      final model = ImageElement(
+        id: 'img-partial',
+        source: 'wifi',
+        attrs: {'x': 10, 'y': 10},
+      );
+
+      layer.bind(model);
+      await Future<void>.delayed(Duration.zero);
+      expect(loadedSources, <String>['wifi']);
+
+      model.apply(attrsPatch: {'x': 99});
+      layer.bind(model, changedKeys: const {'attrs', 'attrs.x'});
+      await Future<void>.delayed(Duration.zero);
+
+      expect(layer.position.x, 99);
+      expect(loadedSources, <String>['wifi']);
+    });
+
+    test('applies tint without forcing sprite reload', () async {
+      final loadedSources = <String>[];
+      final layer = ImageRenderLayer(
+        spriteLoader: (source) async {
+          loadedSources.add(source);
+          return null;
+        },
+      );
+      final model = ImageElement(
+        id: 'img-tint',
+        source: 'wifi',
+        tint: '#00ff00',
+      );
+
+      layer.bind(model);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(layer.renderedTint, const Color(0xFF00FF00));
+      expect(loadedSources, <String>['wifi']);
+
+      model.apply(tint: '#ff0000');
+      layer.bind(model, changedKeys: const {'tint'});
+      await Future<void>.delayed(Duration.zero);
+
+      expect(layer.renderedTint, const Color(0xFFFF0000));
+      expect(loadedSources, <String>['wifi']);
+    });
+
+    test('uses network fallback loader when source is http url', () async {
+      final primaryLoads = <String>[];
+      final networkLoads = <String>[];
+      final layer = ImageRenderLayer(
+        spriteLoader: (source) async {
+          primaryLoads.add(source);
+          return null;
+        },
+        networkSpriteLoader: (source) async {
+          networkLoads.add(source);
+          return null;
+        },
+      );
+      const url =
+          'https://flutter.github.io/assets-for-api-docs/assets/widgets/owl.jpg';
+      final model = ImageElement(id: 'img-url', source: url);
+
+      layer.bind(model);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(primaryLoads, <String>[url]);
+      expect(networkLoads, <String>[url]);
+    });
+
+    test(
+      'provides actionable macOS permission hint for errno=1 socket errors',
+      () {
+        const error =
+            'SocketException: Connection failed (OS Error: Operation not '
+            'permitted, errno = 1), address = images.conalog.com, port = 443';
+
+        final hint = ImageRenderLayer.networkFailureHintFor(
+          error,
+          platform: TargetPlatform.macOS,
+        );
+        final key = ImageRenderLayer.networkFailureHintKeyFor(
+          error,
+          platform: TargetPlatform.macOS,
+        );
+
+        expect(hint, isNotNull);
+        expect(hint, contains('com.apple.security.network.client'));
+        expect(key, 'permission-denied-socket:TargetPlatform.macOS');
+      },
+    );
+
+    test('provides widget-test guidance for http 400 network failures', () {
+      const error =
+          'Unable to load asset: "https://example.com/a.png". HTTP status '
+          'code: 400';
+
+      final hint = ImageRenderLayer.networkFailureHintFor(
+        error,
+        platform: TargetPlatform.android,
+      );
+      final key = ImageRenderLayer.networkFailureHintKeyFor(
+        error,
+        platform: TargetPlatform.android,
+      );
+
+      expect(hint, isNotNull);
+      expect(hint, contains('Flutter widget tests'));
+      expect(hint, contains('networkSpriteLoader'));
+      expect(key, 'http-400');
+    });
+  });
+
   group('ElementRenderHost', () {
     test('upserts and removes text layers by element id', () {
       final host = ElementRenderHost();
@@ -283,6 +444,20 @@ void main() {
         host.layerByElementId('custom-render-id'),
         isA<_CustomRenderLayer>(),
       );
+    });
+
+    test('upserts image layer by element id', () {
+      final host = ElementRenderHost();
+      final model = ImageElement(
+        id: 'img-host',
+        source: 'wifi',
+        size: {'width': 40, 'height': 30},
+      );
+
+      host.upsert(model);
+
+      expect(host.layerCount, 1);
+      expect(host.layerByElementId('img-host'), isA<ImageRenderLayer>());
     });
   });
 }

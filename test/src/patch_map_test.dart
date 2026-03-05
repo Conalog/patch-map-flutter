@@ -4,6 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:patch_map_flutter/patch_map_flutter.dart';
 import 'package:patch_map_flutter/src/domain/elements/element_model.dart';
+import 'package:patch_map_flutter/src/domain/elements/image_element.dart';
 import 'package:patch_map_flutter/src/domain/elements/text_element.dart';
 import 'package:patch_map_flutter/src/render/layers/element_render_host.dart';
 import 'package:patch_map_flutter/src/runtime/patchmap_asset_registry.dart';
@@ -396,6 +397,29 @@ void main() {
       expect(second.text, 'two');
       expect(second.attrs, <String, Object?>{'x': 10, 'y': 20});
       expect(second.style, <String, Object?>{'fontSize': 18});
+    });
+
+    test('draw decodes image elements and exposes image state', () {
+      final instance = Patchmap();
+
+      final drawn = instance.draw(<Object?>[
+        <String, Object?>{
+          'type': 'image',
+          'id': 'img-1',
+          'source': 'wifi',
+          'tint': '#336699',
+          'size': <String, Object?>{'width': 32, 'height': 24},
+          'attrs': <String, Object?>{'x': 10, 'y': 20},
+        },
+      ]);
+
+      expect(drawn, hasLength(1));
+      expect(drawn.single, isA<ImageElement>());
+      final image = drawn.single as ImageElement;
+      expect(image.source, 'wifi');
+      expect(image.tint, '#336699');
+      expect(image.size, <String, Object?>{'width': 32, 'height': 24});
+      expect(image.attrs, <String, Object?>{'x': 10, 'y': 20});
     });
 
     test('draw returns immutable element list', () {
