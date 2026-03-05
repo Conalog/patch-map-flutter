@@ -9,12 +9,23 @@ import 'render/layers/builtin_element_render_layers.dart';
 import 'runtime/patchmap_init_options.dart';
 import 'runtime/patchmap_runtime.dart';
 import 'state/elements_state.dart';
+import 'utils/selector/selector.dart' as selector_utils;
 
 export 'display/update.dart'
     show PatchmapUpdateMergeStrategy, PatchmapUpdateOptions, update;
 export 'runtime/patchmap_init_options.dart'
     show PatchmapInitAppOptions, PatchmapInitAssets, PatchmapInitOptions;
 export 'runtime/patchmap_runtime.dart' show PatchmapRuntime;
+
+final class PatchmapSelectorOptions {
+  const PatchmapSelectorOptions({
+    this.searchableKeys = const <String>['children'],
+    this.flatten = true,
+  });
+
+  final List<String>? searchableKeys;
+  final bool flatten;
+}
 
 final class Patchmap {
   Patchmap({PatchmapRuntime? runtime}) : _app = runtime ?? PatchmapRuntime();
@@ -70,6 +81,18 @@ final class Patchmap {
     PatchmapUpdateOptions options = const PatchmapUpdateOptions(),
   }) {
     return display_update.update(_elementsState, options: options);
+  }
+
+  List<Object?> selector(
+    String? path, [
+    PatchmapSelectorOptions opts = const PatchmapSelectorOptions(),
+  ]) {
+    return selector_utils.selector(
+      _elementsState.selectorRootJson(),
+      path,
+      searchableKeys: opts.searchableKeys,
+      flatten: opts.flatten,
+    );
   }
 
   List<ElementModel> draw(Iterable<Object?> elements) {

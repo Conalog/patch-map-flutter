@@ -208,6 +208,58 @@ void main() {
       expect(second.show, isFalse);
     });
 
+    test('selector reads from fixed state root with path only', () {
+      final instance = Patchmap();
+      instance.draw(<Object?>[
+        <String, Object?>{'type': 'text', 'id': 'txt-a', 'text': 'A'},
+        <String, Object?>{'type': 'text', 'id': 'txt-b', 'text': 'B'},
+      ]);
+
+      final selected = instance.selector(r'$..[?(@.id=="txt-b")]');
+
+      expect(selected, hasLength(1));
+      expect((selected.single as Map<String, Object?>)['id'], 'txt-b');
+    });
+
+    test('selector applies opts for traversal restriction', () {
+      final instance = Patchmap();
+      instance.draw(<Object?>[
+        <String, Object?>{
+          'type': 'text',
+          'id': 'txt-style',
+          'style': <String, Object?>{'fontSize': 24},
+        },
+      ]);
+
+      final withDefaultKeys = instance.selector(r'$..[?(@.fontSize==24)]');
+      final withAllKeys = instance.selector(
+        r'$..[?(@.fontSize==24)]',
+        const PatchmapSelectorOptions(searchableKeys: null),
+      );
+
+      expect(withDefaultKeys, isEmpty);
+      expect(withAllKeys, hasLength(1));
+      expect((withAllKeys.single as Map<String, Object?>)['fontSize'], 24);
+    });
+
+    test('selector applies opts for flatten behavior', () {
+      final instance = Patchmap();
+      instance.draw(<Object?>[
+        <String, Object?>{'type': 'text', 'id': 'txt-a', 'text': 'A'},
+      ]);
+
+      final flattened = instance.selector(r'$..children');
+      final notFlattened = instance.selector(
+        r'$..children',
+        const PatchmapSelectorOptions(flatten: false),
+      );
+
+      expect(flattened, hasLength(1));
+      expect(flattened.single, isA<Map<String, Object?>>());
+      expect(notFlattened, hasLength(1));
+      expect(notFlattened.single, isA<List<Object?>>());
+    });
+
     test('update applies relative transform to attrs.x/y', () {
       final instance = Patchmap();
       final text =
