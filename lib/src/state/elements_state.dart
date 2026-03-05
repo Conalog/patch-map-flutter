@@ -9,11 +9,15 @@ final class ElementsStateChange {
     required this.kind,
     required this.elementId,
     this.model,
+    this.changedKeys = const <String>{},
+    this.refresh = false,
   });
 
   final ElementsStateChangeKind kind;
   final String elementId;
   final ElementModel? model;
+  final Set<String> changedKeys;
+  final bool refresh;
 }
 
 typedef ElementsStateListener = void Function(ElementsStateChange change);
@@ -25,26 +29,47 @@ final class ElementsState {
   final Set<ElementsStateListener> _listeners = <ElementsStateListener>{};
   Map<String, Object?>? _selectorRootJsonCache;
   bool _selectorRootJsonDirty = true;
+  bool _selectorRootJsonReadonlyDirty = true;
   Map<String, Object?>? _selectorRootJsonReadonlyCache;
+  Map<String, int>? _selectorRootJsonIndexById;
 
   List<ElementModel> get elements =>
       List<ElementModel>.unmodifiable(_byId.values);
 
   ElementModel? byId(String elementId) => _byId[elementId];
 
-  Object selectorRootJson() {
+  Object selectorRootJsonMutable() {
     final cached = _selectorRootJsonCache;
+    if (!_selectorRootJsonDirty && cached != null) {
+      return cached;
+    }
+
+    final children = <Object?>[];
+    final indexById = <String, int>{};
+    var index = 0;
+    for (final entry in _byId.entries) {
+      children.add(entry.value.toJson());
+      indexById[entry.key] = index;
+      index += 1;
+    }
+
+    final next = <String, Object?>{'children': children};
+    _selectorRootJsonCache = next;
+    _selectorRootJsonIndexById = indexById;
+    _selectorRootJsonDirty = false;
+    _selectorRootJsonReadonlyDirty = true;
+    return next;
+  }
+
+  Object selectorRootJson() {
     final readonlyCached = _selectorRootJsonReadonlyCache;
-    if (!_selectorRootJsonDirty && cached != null && readonlyCached != null) {
+    if (!_selectorRootJsonReadonlyDirty && readonlyCached != null) {
       return readonlyCached;
     }
 
-    final next = <String, Object?>{
-      'children': _byId.values.map((element) => element.toJson()).toList(),
-    };
-    _selectorRootJsonCache = next;
+    final next = selectorRootJsonMutable() as Map<String, Object?>;
     _selectorRootJsonReadonlyCache = _readonlyRoot(next);
-    _selectorRootJsonDirty = false;
+    _selectorRootJsonReadonlyDirty = false;
     return _selectorRootJsonReadonlyCache!;
   }
 
@@ -56,17 +81,41 @@ final class ElementsState {
     _listeners.remove(listener);
   }
 
-  void upsert(ElementModel model) {
+  void upsert(
+    ElementModel model, {
+    Set<String> changedKeys = const <String>{},
+    bool refresh = false,
+  }) {
     final existing = _byId[model.id];
     if (existing != null && !identical(existing, model)) {
       _detachModel(model.id, existing);
-    } else if (identical(existing, model)) {
-      _invalidateSelectorRootJson();
+      _byId[model.id] = model;
+      _attachModel(model);
+      _patchSelectorRootJsonElement(model.id, model);
+      _invalidateSelectorRootJson(readonlyOnly: true);
+
       _emit(
         ElementsStateChange(
           kind: ElementsStateChangeKind.updated,
           elementId: model.id,
           model: model,
+          changedKeys: Set<String>.unmodifiable(changedKeys),
+          refresh: refresh,
+        ),
+      );
+      return;
+    } else if (identical(existing, model)) {
+      if (changedKeys.isNotEmpty) {
+        _patchSelectorRootJsonElement(model.id, model);
+        _invalidateSelectorRootJson(readonlyOnly: true);
+      }
+      _emit(
+        ElementsStateChange(
+          kind: ElementsStateChangeKind.updated,
+          elementId: model.id,
+          model: model,
+          changedKeys: Set<String>.unmodifiable(changedKeys),
+          refresh: refresh,
         ),
       );
       return;
@@ -83,6 +132,8 @@ final class ElementsState {
             : ElementsStateChangeKind.updated,
         elementId: model.id,
         model: model,
+        changedKeys: Set<String>.unmodifiable(changedKeys),
+        refresh: refresh,
       ),
     );
   }
@@ -130,17 +181,20 @@ final class ElementsState {
   }
 
   void _attachModel(ElementModel model) {
-    void listener(ElementModel changed) {
+    void listener(ElementModel changed, ElementModelChange change) {
       final current = _byId[changed.id];
       if (!identical(current, changed)) {
         return;
       }
-      _invalidateSelectorRootJson();
+      _patchSelectorRootJsonElement(changed.id, changed);
+      _invalidateSelectorRootJson(readonlyOnly: true);
       _emit(
         ElementsStateChange(
           kind: ElementsStateChangeKind.updated,
           elementId: changed.id,
           model: changed,
+          changedKeys: change.changedKeys,
+          refresh: change.refresh,
         ),
       );
     }
@@ -167,8 +221,38 @@ final class ElementsState {
     }
   }
 
-  void _invalidateSelectorRootJson() {
-    _selectorRootJsonDirty = true;
+  void _invalidateSelectorRootJson({bool readonlyOnly = false}) {
+    if (!readonlyOnly) {
+      _selectorRootJsonDirty = true;
+      _selectorRootJsonIndexById = null;
+    }
+    _selectorRootJsonReadonlyDirty = true;
+  }
+
+  void _patchSelectorRootJsonElement(String elementId, ElementModel model) {
+    if (_selectorRootJsonDirty) {
+      return;
+    }
+
+    final root = _selectorRootJsonCache;
+    final indexById = _selectorRootJsonIndexById;
+    if (root == null || indexById == null) {
+      _selectorRootJsonDirty = true;
+      return;
+    }
+
+    final index = indexById[elementId];
+    final children = root['children'];
+    if (index == null || children is! List<Object?>) {
+      _selectorRootJsonDirty = true;
+      return;
+    }
+    if (index < 0 || index >= children.length) {
+      _selectorRootJsonDirty = true;
+      return;
+    }
+
+    children[index] = model.toJson();
   }
 
   Map<String, Object?> _readonlyRoot(Map<String, Object?> root) {

@@ -34,7 +34,15 @@ final class TextRenderLayer extends ElementRenderLayer<TextElement> {
   bool get usesFixedSizeMode => _isFixedSizeMode;
 
   @override
-  void syncFromModel(TextElement model) {
+  void syncFromModel(
+    TextElement model, {
+    required Set<String>? changedKeys,
+    required bool refresh,
+  }) {
+    if (!refresh && changedKeys != null && !_shouldSyncText(changedKeys)) {
+      return;
+    }
+
     final fixedSize = _fixedSizeFrom(model.size);
     final constrainedWidth = _maxWidthFrom(model.size);
     _ensureComponentMode(isFixedSize: fixedSize != null, fixedSize: fixedSize);
@@ -60,6 +68,32 @@ final class TextRenderLayer extends ElementRenderLayer<TextElement> {
       maxWidth: constrainedWidth ?? _autoMaxWidth(model.text, textPaint),
       margins: EdgeInsets.zero,
     );
+  }
+
+  bool _shouldSyncText(Set<String> changedKeys) {
+    const rootKeys = <String>{'text', 'style', 'size'};
+    for (final key in changedKeys) {
+      if (rootKeys.contains(key)) {
+        return true;
+      }
+      if (key.startsWith('text.') ||
+          key.startsWith('style.') ||
+          key.startsWith('size.')) {
+        return true;
+      }
+      if (!_isKnownBaseKey(key)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _isKnownBaseKey(String key) {
+    return key == 'show' ||
+        key == 'attrs' ||
+        key == 'attrs.x' ||
+        key == 'attrs.y' ||
+        key == 'attrs.zIndex';
   }
 
   void _ensureComponentMode({

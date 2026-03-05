@@ -26,10 +26,14 @@ void main() {
     test('emits updated when registered model mutates', () {
       final state = ElementsState();
       final events = <ElementsStateChangeKind>[];
+      final changedKeysList = <Set<String>>[];
       final model = TextElement(id: 'txt-2', text: 'before');
 
       state.addListener((change) {
         events.add(change.kind);
+        if (change.kind == ElementsStateChangeKind.updated) {
+          changedKeysList.add(change.changedKeys);
+        }
       });
 
       state.upsert(model);
@@ -39,6 +43,8 @@ void main() {
         ElementsStateChangeKind.added,
         ElementsStateChangeKind.updated,
       ]);
+      expect(changedKeysList, hasLength(1));
+      expect(changedKeysList.single, contains('text'));
     });
 
     test('reuses selector root json until state changes', () {
@@ -59,7 +65,7 @@ void main() {
       expect(model.toJsonCallCount, 2);
     });
 
-    test('invalidates selector root cache on identical upsert', () {
+    test('reuses selector root cache on identical upsert without changes', () {
       final state = ElementsState();
       final model = _CountingJsonElement(id: 'count-2');
       state.upsert(model);
@@ -68,7 +74,25 @@ void main() {
 
       state.upsert(model);
       state.selectorRootJson();
-      expect(model.toJsonCallCount, 2);
+      expect(model.toJsonCallCount, 1);
+    });
+
+    test('exposes refresh metadata on forced upsert', () {
+      final state = ElementsState();
+      final model = TextElement(id: 'txt-refresh', text: 'stable');
+      final refreshFlags = <bool>[];
+
+      state.addListener((change) {
+        if (change.kind == ElementsStateChangeKind.updated) {
+          refreshFlags.add(change.refresh);
+        }
+      });
+
+      state.upsert(model);
+      state.upsert(model, refresh: true);
+
+      expect(refreshFlags, hasLength(1));
+      expect(refreshFlags.single, isTrue);
     });
 
     test('returns read-only selector root snapshot', () {
@@ -107,7 +131,7 @@ final class _CountingJsonElement extends ElementModel {
 
   void bumpVersion() {
     version += 1;
-    notifyChanged();
+    notifyChanged(changedKeys: const {'version'});
   }
 
   @override

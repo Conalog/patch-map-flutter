@@ -439,7 +439,7 @@ void main() {
     });
 
     test(
-      'path update reuses selector snapshot and invalidates on mutation',
+      'simple equality path update avoids selector snapshot materialization',
       () {
         final instance = Patchmap();
         ElementModel.registerDecoder(
@@ -462,12 +462,12 @@ void main() {
         instance.update(
           options: const PatchmapUpdateOptions(path: byValueOnePath),
         );
-        expect(element.toJsonCallCount, 1);
+        expect(element.toJsonCallCount, 0);
 
         instance.update(
           options: const PatchmapUpdateOptions(path: byValueOnePath),
         );
-        expect(element.toJsonCallCount, 1);
+        expect(element.toJsonCallCount, 0);
 
         instance.update(
           options: const PatchmapUpdateOptions(
@@ -476,12 +476,16 @@ void main() {
           ),
         );
         expect(element.value, 2);
-        expect(element.toJsonCallCount, 1);
+        expect(element.toJsonCallCount, 0);
 
         instance.update(
           options: const PatchmapUpdateOptions(path: byValueTwoPath),
         );
-        expect(element.toJsonCallCount, 2);
+        expect(element.toJsonCallCount, 0);
+
+        final selected = instance.selector(byValueTwoPath);
+        expect(selected, hasLength(1));
+        expect(element.toJsonCallCount, 1);
       },
     );
   });
@@ -502,13 +506,21 @@ final class _CustomElement extends ElementModel {
     final next = changes['value'];
     if (next is int && value != next) {
       value = next;
-      notifyChanged();
+      notifyChanged(changedKeys: const {'value'});
     }
   }
 
   @override
   Map<String, Object?> toJson() {
     return toJsonBase()..['value'] = value;
+  }
+
+  @override
+  Object? selectorRootValue(String key) {
+    if (key == 'value') {
+      return value;
+    }
+    return super.selectorRootValue(key);
   }
 }
 
@@ -537,7 +549,7 @@ final class _CountingPathElement extends ElementModel {
     final next = changes['value'];
     if (next is int && value != next) {
       value = next;
-      notifyChanged();
+      notifyChanged(changedKeys: const {'value'});
     }
   }
 
@@ -545,6 +557,14 @@ final class _CountingPathElement extends ElementModel {
   Map<String, Object?> toJson() {
     toJsonCallCount += 1;
     return toJsonBase()..['value'] = value;
+  }
+
+  @override
+  Object? selectorRootValue(String key) {
+    if (key == 'value') {
+      return value;
+    }
+    return super.selectorRootValue(key);
   }
 }
 

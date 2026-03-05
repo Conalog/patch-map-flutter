@@ -3,8 +3,16 @@ import 'dart:collection';
 import '../common/json_types.dart';
 import '../../utils/uid.dart';
 
-typedef ElementModelListener = void Function(ElementModel model);
+typedef ElementModelListener =
+    void Function(ElementModel model, ElementModelChange change);
 typedef ElementModelDecoder = ElementModel Function(JsonMap map);
+
+final class ElementModelChange {
+  const ElementModelChange({required this.changedKeys, this.refresh = false});
+
+  final Set<String> changedKeys;
+  final bool refresh;
+}
 
 /// Mirrors patch-map's Element static hit policy.
 enum ElementHitScope { self, children }
@@ -18,6 +26,7 @@ enum ElementHitScope { self, children }
 /// - Resize capability is intentionally not modeled yet in patch_map_flutter.
 abstract class ElementModel {
   static const Object unchanged = Object();
+  static const Object selectorValueNotFound = Object();
   static final Map<String, ElementModelDecoder> _decoderByType =
       <String, ElementModelDecoder>{};
 
@@ -121,15 +130,15 @@ abstract class ElementModel {
     JsonMap? attrsPatch,
     bool mergeAttrs = false,
   }) {
-    final changed = applyBaseChanges(
+    final changedKeys = applyBaseChanges(
       label: label,
       show: show,
       attrs: attrs,
       attrsPatch: attrsPatch,
       mergeAttrs: mergeAttrs,
     );
-    if (changed) {
-      notifyChanged();
+    if (changedKeys.isNotEmpty) {
+      notifyChanged(changedKeys: changedKeys);
     }
   }
 
@@ -157,88 +166,121 @@ abstract class ElementModel {
     _listeners.remove(listener);
   }
 
-  void notifyChanged() {
+  void notifyChanged({required Set<String> changedKeys, bool refresh = false}) {
     if (_listeners.isEmpty) {
       return;
     }
+    final snapshot = Set<String>.unmodifiable(changedKeys);
     final listeners = List<ElementModelListener>.of(_listeners);
     for (final listener in listeners) {
-      listener(this);
+      listener(
+        this,
+        ElementModelChange(changedKeys: snapshot, refresh: refresh),
+      );
     }
   }
 
-  bool applyBaseChanges({
+  Set<String> applyBaseChanges({
     Object? label = unchanged,
     bool? show,
     JsonMap? attrs,
     JsonMap? attrsPatch,
     bool mergeAttrs = false,
   }) {
-    var changed = false;
+    final changedKeys = <String>{};
 
     if (!identical(label, unchanged)) {
       final next = label as String?;
       if (_label != next) {
         _label = next;
-        changed = true;
+        changedKeys.add('label');
       }
     }
 
     if (show != null && _show != show) {
       _show = show;
-      changed = true;
+      changedKeys.add('show');
     }
 
     if (attrs != null) {
       final nextAttrs = Map<String, Object?>.of(attrs);
       if (mergeAttrs) {
-        changed = mergeMapEntries(_attrs, nextAttrs) || changed;
+        final attrKeys = mergeMapEntries(_attrs, nextAttrs);
+        if (attrKeys.isNotEmpty) {
+          changedKeys.add('attrs');
+          changedKeys.addAll(attrKeys.map((key) => 'attrs.$key'));
+        }
       } else if (!mapEqualsShallow(_attrs, nextAttrs)) {
+        final attrKeys = changedMapKeys(_attrs, nextAttrs);
         _attrs = nextAttrs;
-        changed = true;
+        changedKeys.add('attrs');
+        changedKeys.addAll(attrKeys.map((key) => 'attrs.$key'));
       }
     }
 
     if (attrsPatch != null) {
-      changed = patchMapEntries(_attrs, attrsPatch) || changed;
+      final attrKeys = patchMapEntries(_attrs, attrsPatch);
+      if (attrKeys.isNotEmpty) {
+        changedKeys.add('attrs');
+        changedKeys.addAll(attrKeys.map((key) => 'attrs.$key'));
+      }
     }
 
-    return changed;
+    return changedKeys;
   }
 
-  bool mergeMapEntries(
+  Set<String> mergeMapEntries(
     Map<String, Object?> target,
     Map<String, Object?> source,
   ) {
-    var changed = false;
+    final changedKeys = <String>{};
     source.forEach((key, value) {
       if (!target.containsKey(key) || target[key] != value) {
         target[key] = value;
-        changed = true;
+        changedKeys.add(key);
       }
     });
-    return changed;
+    return changedKeys;
   }
 
-  bool patchMapEntries(
+  Set<String> patchMapEntries(
     Map<String, Object?> target,
     Map<String, Object?> patch,
   ) {
-    var changed = false;
+    final changedKeys = <String>{};
     patch.forEach((key, value) {
       if (value == null) {
         if (target.containsKey(key)) {
           target.remove(key);
-          changed = true;
+          changedKeys.add(key);
         }
         return;
       }
 
       if (!target.containsKey(key) || target[key] != value) {
         target[key] = value;
-        changed = true;
+        changedKeys.add(key);
       }
     });
+    return changedKeys;
+  }
+
+  Set<String> changedMapKeys(
+    Map<String, Object?> previous,
+    Map<String, Object?> next,
+  ) {
+    final changed = <String>{};
+    for (final key in previous.keys) {
+      if (!next.containsKey(key)) {
+        changed.add(key);
+      }
+    }
+    for (final entry in next.entries) {
+      if (!previous.containsKey(entry.key) ||
+          previous[entry.key] != entry.value) {
+        changed.add(entry.key);
+      }
+    }
     return changed;
   }
 
@@ -286,6 +328,60 @@ abstract class ElementModel {
   }
 
   JsonMap toJson();
+
+  /// Returns the value at [keyPath] for selector/path matching.
+  ///
+  /// The default implementation supports base root keys (`id`, `type`,
+  /// `label`, `show`, `attrs`) plus nested lookups through maps/lists.
+  /// Subclasses can override [selectorRootValue] to expose typed root keys
+  /// without serializing a full JSON map.
+  Object? selectorValueAtPath(String keyPath) {
+    final normalized = keyPath.trim();
+    if (normalized.isEmpty) {
+      return selectorValueNotFound;
+    }
+
+    final segments = normalized.split('.');
+    var current = selectorRootValue(segments.first);
+    if (identical(current, selectorValueNotFound)) {
+      return selectorValueNotFound;
+    }
+
+    for (var i = 1; i < segments.length; i++) {
+      final segment = segments[i];
+      if (current is Map && current.containsKey(segment)) {
+        current = current[segment];
+        continue;
+      }
+      if (current is List) {
+        final index = int.tryParse(segment);
+        if (index == null) {
+          return selectorValueNotFound;
+        }
+        final normalizedIndex = index < 0 ? current.length + index : index;
+        if (normalizedIndex < 0 || normalizedIndex >= current.length) {
+          return selectorValueNotFound;
+        }
+        current = current[normalizedIndex];
+        continue;
+      }
+      return selectorValueNotFound;
+    }
+
+    return current;
+  }
+
+  /// Root-level selector lookup hook for subclasses.
+  Object? selectorRootValue(String key) {
+    return switch (key) {
+      'id' => id,
+      'type' => type,
+      'label' => _label,
+      'show' => _show,
+      'attrs' => _attrs,
+      _ => selectorValueNotFound,
+    };
+  }
 
   Object? labelArgFromChanges(JsonMap changes) {
     if (!changes.containsKey('label')) {

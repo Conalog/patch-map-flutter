@@ -31,6 +31,24 @@ void main() {
       expect(layer.position.y, 34);
       expect(layer.syncCallCount, 1);
     });
+
+    test('skips full sync for shared-only changed keys on partial bind', () {
+      final layer = _FakeLayer();
+      final model = TextElement(
+        id: 'txt-1-partial',
+        attrs: {'x': 12, 'y': 34, 'zIndex': 7},
+        text: 'hello',
+      );
+
+      layer.bind(model);
+      expect(layer.syncCallCount, 1);
+
+      model.apply(attrsPatch: {'x': 20});
+      layer.bind(model, changedKeys: const {'attrs', 'attrs.x'});
+
+      expect(layer.position.x, 20);
+      expect(layer.syncCallCount, 1);
+    });
   });
 
   group('TextRenderLayer', () {
@@ -162,6 +180,33 @@ void main() {
       expect(activeSpy.colorsAtBoxConfigSet, isNotEmpty);
       expect(activeSpy.colorsAtBoxConfigSet.last, const Color(0xFFFF0000));
     });
+
+    test('avoids text renderer rebind when only position changed', () {
+      final spies = <_SpyTextBoxComponent>[];
+      final layer = TextRenderLayer(
+        componentBuilder: (size) {
+          final spy = _SpyTextBoxComponent(size: size);
+          spies.add(spy);
+          return spy;
+        },
+      );
+      final model = TextElement(
+        id: 'txt-partial',
+        text: 'stable',
+        style: {'fontSize': 16},
+        attrs: {'x': 10, 'y': 10},
+      );
+
+      layer.bind(model);
+      final activeSpy = spies.last;
+      final boxConfigSetCountBefore = activeSpy.boxConfigSetCount;
+
+      model.apply(attrsPatch: {'x': 99});
+      layer.bind(model, changedKeys: const {'attrs', 'attrs.x'});
+
+      expect(layer.position.x, 99);
+      expect(activeSpy.boxConfigSetCount, boxConfigSetCountBefore);
+    });
   });
 
   group('ElementRenderHost', () {
@@ -246,7 +291,11 @@ final class _FakeLayer extends ElementRenderLayer<TextElement> {
   int syncCallCount = 0;
 
   @override
-  void syncFromModel(TextElement model) {
+  void syncFromModel(
+    TextElement model, {
+    required Set<String>? changedKeys,
+    required bool refresh,
+  }) {
     syncCallCount += 1;
   }
 }
@@ -261,7 +310,11 @@ final class _CustomRenderElement extends ElementModel {
 final class _CustomRenderLayer
     extends ElementRenderLayer<_CustomRenderElement> {
   @override
-  void syncFromModel(_CustomRenderElement model) {}
+  void syncFromModel(
+    _CustomRenderElement model, {
+    required Set<String>? changedKeys,
+    required bool refresh,
+  }) {}
 }
 
 final class _SpyTextBoxComponent extends TextBoxComponent<TextPaint> {
@@ -276,9 +329,11 @@ final class _SpyTextBoxComponent extends TextBoxComponent<TextPaint> {
       );
 
   final List<Color?> colorsAtBoxConfigSet = <Color?>[];
+  int boxConfigSetCount = 0;
 
   @override
   set boxConfig(TextBoxConfig value) {
+    boxConfigSetCount += 1;
     final renderer = textRenderer;
     if (renderer is TextPaint) {
       colorsAtBoxConfigSet.add(renderer.style.color);

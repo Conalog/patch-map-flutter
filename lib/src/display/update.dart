@@ -3,6 +3,7 @@ import '../domain/elements/element_model.dart';
 import '../state/elements_state.dart';
 import '../utils/deepmerge/deep_merge.dart';
 import '../utils/selector/selector.dart';
+import 'update_path_match.dart';
 
 enum PatchmapUpdateMergeStrategy { merge, replace }
 
@@ -56,7 +57,7 @@ List<ElementModel> update(
 
     if (options.refresh) {
       // Force one state change event even when data is unchanged.
-      state.upsert(element);
+      state.upsert(element, changedKeys: const <String>{'*'}, refresh: true);
     }
   }
 
@@ -64,8 +65,8 @@ List<ElementModel> update(
 }
 
 List<ElementModel> _elementsByPath(ElementsState state, String path) {
-  final directId = _directIdFromPath(path);
-  if (directId != null) {
+  final fastPathMatch = parseUpdatePathFastMatch(path);
+  if (fastPathMatch?.directId case final directId?) {
     final model = state.byId(directId);
     if (model == null) {
       return const <ElementModel>[];
@@ -73,7 +74,25 @@ List<ElementModel> _elementsByPath(ElementsState state, String path) {
     return <ElementModel>[model];
   }
 
-  final rootJson = state.selectorRootJson();
+  if (fastPathMatch?.simpleEquals case final simpleEq?) {
+    final matched = <ElementModel>[];
+    for (final model in state.elements) {
+      final value = model.selectorValueAtPath(simpleEq.keyPath);
+      if (identical(value, ElementModel.selectorValueNotFound)) {
+        return _elementsBySelector(state, path);
+      }
+      if (updatePathLooseEquals(value, simpleEq.expectedValue)) {
+        matched.add(model);
+      }
+    }
+    return matched;
+  }
+
+  return _elementsBySelector(state, path);
+}
+
+List<ElementModel> _elementsBySelector(ElementsState state, String path) {
+  final rootJson = state.selectorRootJsonMutable();
   final selected = selector(rootJson, path);
   final out = <ElementModel>[];
   for (final match in selected) {
@@ -117,16 +136,4 @@ JsonMap _cloneJsonMap(JsonMap source) {
     return map;
   }
   return Map<String, Object?>.of(source);
-}
-
-final RegExp _directIdPathPattern = RegExp(
-  r'''^\$\.\.\[\?\(@\.id==(?:\"([^\"]+)\"|'([^']+)')\)\]$''',
-);
-
-String? _directIdFromPath(String path) {
-  final match = _directIdPathPattern.firstMatch(path.trim());
-  if (match == null) {
-    return null;
-  }
-  return match.group(1) ?? match.group(2);
 }

@@ -252,7 +252,7 @@ final class TextElement extends ElementModel {
     JsonMap? sizePatch,
     bool mergeSize = false,
   }) {
-    var changed = applyBaseChanges(
+    final changedKeys = applyBaseChanges(
       label: label,
       show: show,
       attrs: attrs,
@@ -264,22 +264,32 @@ final class TextElement extends ElementModel {
       final nextText = text as String;
       if (_text != nextText) {
         _text = nextText;
-        changed = true;
+        changedKeys.add('text');
       }
     }
 
     if (style != null) {
       final nextStyle = Map<String, Object?>.of(style);
       if (mergeStyle) {
-        changed = mergeMapEntries(_style, nextStyle) || changed;
+        final styleKeys = mergeMapEntries(_style, nextStyle);
+        if (styleKeys.isNotEmpty) {
+          changedKeys.add('style');
+          changedKeys.addAll(styleKeys.map((key) => 'style.$key'));
+        }
       } else if (!mapEqualsShallow(_style, nextStyle)) {
+        final styleKeys = changedMapKeys(_style, nextStyle);
         _style = nextStyle;
-        changed = true;
+        changedKeys.add('style');
+        changedKeys.addAll(styleKeys.map((key) => 'style.$key'));
       }
     }
 
     if (stylePatch != null) {
-      changed = patchMapEntries(_style, stylePatch) || changed;
+      final styleKeys = patchMapEntries(_style, stylePatch);
+      if (styleKeys.isNotEmpty) {
+        changedKeys.add('style');
+        changedKeys.addAll(styleKeys.map((key) => 'style.$key'));
+      }
     }
 
     if (size != null) {
@@ -287,12 +297,19 @@ final class TextElement extends ElementModel {
       final currentSize = _size;
       if (currentSize == null) {
         _size = nextSize;
-        changed = true;
+        changedKeys.add('size');
+        changedKeys.addAll(nextSize.keys.map((key) => 'size.$key'));
       } else if (mergeSize) {
-        changed = mergeMapEntries(currentSize, nextSize) || changed;
+        final sizeKeys = mergeMapEntries(currentSize, nextSize);
+        if (sizeKeys.isNotEmpty) {
+          changedKeys.add('size');
+          changedKeys.addAll(sizeKeys.map((key) => 'size.$key'));
+        }
       } else if (!mapEqualsShallow(currentSize, nextSize)) {
+        final sizeKeys = changedMapKeys(currentSize, nextSize);
         _size = nextSize;
-        changed = true;
+        changedKeys.add('size');
+        changedKeys.addAll(sizeKeys.map((key) => 'size.$key'));
       }
     }
 
@@ -300,18 +317,23 @@ final class TextElement extends ElementModel {
       final currentSize = _size;
       if (currentSize == null) {
         final initial = <String, Object?>{};
-        patchMapEntries(initial, sizePatch);
+        final sizeKeys = patchMapEntries(initial, sizePatch);
         if (initial.isNotEmpty) {
           _size = initial;
-          changed = true;
+          changedKeys.add('size');
+          changedKeys.addAll(sizeKeys.map((key) => 'size.$key'));
         }
       } else {
-        changed = patchMapEntries(currentSize, sizePatch) || changed;
+        final sizeKeys = patchMapEntries(currentSize, sizePatch);
+        if (sizeKeys.isNotEmpty) {
+          changedKeys.add('size');
+          changedKeys.addAll(sizeKeys.map((key) => 'size.$key'));
+        }
       }
     }
 
-    if (changed) {
-      notifyChanged();
+    if (changedKeys.isNotEmpty) {
+      notifyChanged(changedKeys: changedKeys);
     }
   }
 
@@ -331,6 +353,16 @@ final class TextElement extends ElementModel {
       map['size'] = Map<String, Object?>.of(sizeValue);
     }
     return map;
+  }
+
+  @override
+  Object? selectorRootValue(String key) {
+    return switch (key) {
+      'text' => _text,
+      'style' => _style,
+      'size' => _size,
+      _ => super.selectorRootValue(key),
+    };
   }
 
   Object _textArg(JsonMap changes) {

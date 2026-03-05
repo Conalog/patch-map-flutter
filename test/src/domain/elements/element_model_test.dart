@@ -9,10 +9,7 @@ void main() {
       expect(element.type, 'item');
       expect(element.id, isNotNull);
       expect(element.id, hasLength(15));
-      expect(
-        element.id,
-        matches(RegExp(r'^[0-9A-Za-z]{15}$')),
-      );
+      expect(element.id, matches(RegExp(r'^[0-9A-Za-z]{15}$')));
       expect(element.label, isNull);
       expect(element.show, isTrue);
       expect(element.attrs, isEmpty);
@@ -88,6 +85,29 @@ void main() {
       expect(element.show, isFalse);
       expect(element.zIndex, 5);
       expect(element.attrs, <String, Object?>{'zIndex': 5, 'y': 20});
+    });
+
+    test('emits changed keys for base updates', () {
+      final element = _TestElement(type: 'item');
+      final changes = <ElementModelChange>[];
+      element.addListener((_, change) {
+        changes.add(change);
+      });
+
+      element.apply(show: false, attrsPatch: {'x': 10, 'y': 20, 'zIndex': 3});
+
+      expect(changes, hasLength(1));
+      expect(
+        changes.single.changedKeys,
+        containsAll(<String>{
+          'show',
+          'attrs',
+          'attrs.x',
+          'attrs.y',
+          'attrs.zIndex',
+        }),
+      );
+      expect(changes.single.refresh, isFalse);
     });
   });
 }

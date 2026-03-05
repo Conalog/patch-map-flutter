@@ -61,7 +61,13 @@ final class ElementRenderHost extends Component {
         case ElementsStateChangeKind.updated:
           final model = change.model;
           if (model != null) {
-            upsert(model);
+            upsert(
+              model,
+              changedKeys: change.changedKeys,
+              refresh:
+                  change.refresh ||
+                  change.kind == ElementsStateChangeKind.added,
+            );
           }
         case ElementsStateChangeKind.removed:
           removeByElementId(change.elementId);
@@ -74,21 +80,25 @@ final class ElementRenderHost extends Component {
     state.addListener(listener);
 
     for (final model in state.elements) {
-      upsert(model);
+      upsert(model, refresh: true);
     }
   }
 
-  void upsert(ElementModel model) {
+  void upsert(
+    ElementModel model, {
+    Set<String>? changedKeys,
+    bool refresh = false,
+  }) {
     final existing = _layerByElementId[model.id];
     if (existing != null) {
-      existing.bind(model);
+      existing.bind(model, changedKeys: changedKeys, refresh: refresh);
       return;
     }
 
     final layer = _newLayer(model);
     _layerByElementId[model.id] = layer;
     add(layer);
-    layer.bind(model);
+    layer.bind(model, refresh: true);
   }
 
   void removeByElementId(String elementId) {
