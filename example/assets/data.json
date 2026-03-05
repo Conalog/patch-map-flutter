@@ -1,0 +1,47 @@
+[
+  {
+    "type": "text",
+    "id": "title",
+    "label": "title",
+    "show": true,
+    "attrs": {
+      "x": 0,
+      "y": 0,
+      "zIndex": 1
+    },
+    "text": "patch_map_flutter draw(data.json) 11",
+    "style": {
+      "fontSize": 28
+    }
+  },
+  {
+    "type": "text",
+    "id": "subtitle",
+    "label": "subtitle",
+    "show": true,
+    "attrs": {
+      "x": 24,
+      "y": 70,
+      "zIndex": 1
+    },
+    "text": "Rendered through Patchmap.draw() + ElementsState + RenderLayer",
+    "style": {
+      "fontSize": 16
+    }
+  },
+  {
+    "type": "text",
+    "id": "hint",
+    "label": "hint",
+    "show": true,
+    "attrs": {
+      "x": 24,
+      "y": 102,
+      "zIndex": 1
+    },
+    "text": "Edit example/assets/data.json and hot restart to verify changes.",
+    "style": {
+      "fontSize": 13
+    }
+  }
+]

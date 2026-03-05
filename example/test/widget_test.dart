@@ -6,7 +6,7 @@ void main() {
   testWidgets('renders example shell', (WidgetTester tester) async {
     await tester.pumpWidget(const PatchmapExampleApp());
 
-    expect(find.text('Patchmap Runtime Example'), findsOneWidget);
+    expect(find.byType(PatchmapWidget), findsOneWidget);
   });
 
   testWidgets('loads downloaded svg asset via init options', (

@@ -36,7 +36,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   patch_map_flutter:
     path: ..
-  flame: ^1.35.1
 
 dev_dependencies:
   flutter_test:
@@ -60,6 +59,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/data.json
     - assets/icons/
 
   # To add assets to your application, add an assets section, like this:
