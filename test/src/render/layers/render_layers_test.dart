@@ -368,6 +368,21 @@ void main() {
       expect(hint, contains('networkSpriteLoader'));
       expect(key, 'http-400');
     });
+
+    test(
+      'provides web guidance for Platform._version unsupported operation',
+      () {
+        const error = 'Unsupported operation: Platform._version';
+
+        final hint = ImageRenderLayer.networkFailureHintFor(error);
+        final key = ImageRenderLayer.networkFailureHintKeyFor(error);
+
+        expect(hint, isNotNull);
+        expect(hint, contains('Flutter Web'));
+        expect(hint, contains('NetworkImage'));
+        expect(key, 'web-platform-version-unsupported');
+      },
+    );
   });
 
   group('ElementRenderHost', () {

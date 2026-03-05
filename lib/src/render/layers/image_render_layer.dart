@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flame/components.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 
 import '../../domain/elements/image_element.dart';
 import '../../runtime/patchmap_runtime.dart';
@@ -24,7 +23,6 @@ final class ImageRenderLayer extends ElementRenderLayer<ImageElement> {
   final ImageSpriteLoader? _networkSpriteLoaderOverride;
   final _OptionalSpriteComponent _spriteComponent = _OptionalSpriteComponent();
   final Map<String, Sprite> _networkSpriteBySource = <String, Sprite>{};
-  final List<Image> _ownedNetworkImages = <Image>[];
   static final Set<String> _reportedNetworkHintKeys = <String>{};
 
   String _renderedSource = '';
@@ -47,10 +45,6 @@ final class ImageRenderLayer extends ElementRenderLayer<ImageElement> {
 
   @override
   void onRemove() {
-    for (final image in _ownedNetworkImages) {
-      image.dispose();
-    }
-    _ownedNetworkImages.clear();
     _networkSpriteBySource.clear();
     super.onRemove();
   }
@@ -239,14 +233,7 @@ final class ImageRenderLayer extends ElementRenderLayer<ImageElement> {
     }
 
     try {
-      final bytes = await _loadNetworkBytes(uri);
-      final codec = await instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      codec.dispose();
-
-      final image = frame.image;
-      _ownedNetworkImages.add(image);
-      final sprite = Sprite(image);
+      final sprite = await _loadSpriteFromImageProvider(source);
       _networkSpriteBySource[source] = sprite;
       return sprite;
     } catch (error, stackTrace) {
@@ -267,13 +254,30 @@ final class ImageRenderLayer extends ElementRenderLayer<ImageElement> {
     }
   }
 
-  Future<Uint8List> _loadNetworkBytes(Uri uri) async {
-    final bundle = NetworkAssetBundle(uri);
-    final byteData = await bundle.load(uri.toString());
-    return byteData.buffer.asUint8List(
-      byteData.offsetInBytes,
-      byteData.lengthInBytes,
+  Future<Sprite> _loadSpriteFromImageProvider(String source) async {
+    final provider = NetworkImage(source);
+    final stream = provider.resolve(const ImageConfiguration());
+    final completer = Completer<ImageInfo>();
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (imageInfo, _) {
+        if (!completer.isCompleted) {
+          completer.complete(imageInfo);
+        }
+      },
+      onError: (Object error, StackTrace? stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace ?? StackTrace.current);
+        }
+      },
     );
+    stream.addListener(listener);
+    try {
+      final imageInfo = await completer.future;
+      return Sprite(imageInfo.image);
+    } finally {
+      stream.removeListener(listener);
+    }
   }
 
   @visibleForTesting
@@ -303,6 +307,11 @@ final class ImageRenderLayer extends ElementRenderLayer<ImageElement> {
           'Platform policy blocked outbound socket. Check runtime network '
               'permissions for the host app.',
       };
+    }
+    if (_looksLikePlatformVersionUnsupported(normalized)) {
+      return 'Flutter Web cannot use an IO-based network decode path. '
+          'Load network sprites with `NetworkImage` and verify CORS allows '
+          'the image origin.';
     }
     if (normalized.contains('http status code: 400')) {
       return 'HTTP 400 while loading image URL. In Flutter widget tests, '
@@ -335,6 +344,9 @@ final class ImageRenderLayer extends ElementRenderLayer<ImageElement> {
     if (_looksLikePermissionDeniedSocketError(normalized)) {
       return 'permission-denied-socket:$targetPlatform';
     }
+    if (_looksLikePlatformVersionUnsupported(normalized)) {
+      return 'web-platform-version-unsupported';
+    }
     if (normalized.contains('http status code: 400')) {
       return 'http-400';
     }
@@ -354,6 +366,10 @@ final class ImageRenderLayer extends ElementRenderLayer<ImageElement> {
   static bool _looksLikePermissionDeniedSocketError(String normalized) {
     return normalized.contains('operation not permitted') ||
         normalized.contains('errno = 1');
+  }
+
+  static bool _looksLikePlatformVersionUnsupported(String normalized) {
+    return normalized.contains('unsupported operation: platform._version');
   }
 
   Color? _colorFromTint(Object? value) {
